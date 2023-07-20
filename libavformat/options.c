@@ -147,9 +147,9 @@ static int io_open_default(AVFormatContext *s, AVIOContext **pb,
         s->iformat && !strcmp(s->iformat->name, "image2") ||
         s->oformat && !strcmp(s->oformat->name, "image2")
     ) {
-        loglevel = AV_LOG_DEBUG;
+        loglevel = AV_LOG_TRACE;
     } else
-        loglevel = AV_LOG_INFO;
+        loglevel = AV_LOG_TRACE;
 
     av_log(s, loglevel, "Opening \'%s\' for %s\n", url, flags & AVIO_FLAG_WRITE ? "writing" : "reading");
 
