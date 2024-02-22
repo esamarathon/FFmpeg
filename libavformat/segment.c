@@ -28,6 +28,7 @@
 
 #include <time.h>
 #include <sys/stat.h>
+#include <string.h>
 
 #include "avformat.h"
 #include "internal.h"
@@ -126,6 +127,7 @@ typedef struct SegmentContext {
 
     int use_rename;
     char *temp_list_filename;
+    char *last_segment_name;
 
     SegmentListEntry cur_entry;
     SegmentListEntry *segment_list_entries;
@@ -222,7 +224,10 @@ static int set_segment_filename(AVFormatContext *s)
     int ret;
     AVBPrint filename;
     char *new_name;
+    int log_state = 0;
+    int retry_cnt = 0;
 
+retry_filename:
     av_bprint_init(&filename, 0, AV_BPRINT_SIZE_UNLIMITED);
     if (seg->segment_idx_wrap)
         seg->segment_idx %= seg->segment_idx_wrap;
@@ -247,6 +252,18 @@ static int set_segment_filename(AVFormatContext *s)
     ret = av_bprint_finalize(&filename, &new_name);
     if (ret < 0)
         return ret;
+
+    if (seg->use_strftime && retry_cnt < 50) {
+        if (seg->last_segment_name && !strcmp(new_name, seg->last_segment_name)) {
+            av_log_once(oc, AV_LOG_WARNING, AV_LOG_DEBUG, &log_state, "Duplicate strftime segment filename: %s\n", new_name);
+            av_freep(&new_name);
+            retry_cnt++;
+            av_usleep(50000);
+            goto retry_filename;
+        }
+        av_free(seg->last_segment_name);
+        seg->last_segment_name = av_strdup(new_name);
+    }
 
     if (seg->nb_prepend_dir > 0) {
         int nlen = strlen(new_name);
@@ -729,6 +746,7 @@ static void seg_free(AVFormatContext *s)
     av_freep(&seg->frames);
     av_freep(&seg->cur_entry.filename);
     av_freep(&seg->temp_list_filename);
+    av_freep(&seg->last_segment_name);
 
     cur = seg->segment_list_entries;
     while (cur) {
